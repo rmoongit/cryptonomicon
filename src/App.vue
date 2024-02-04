@@ -18,6 +18,7 @@
                                 name="wallet"
                                 class="block w-full pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
                                 placeholder="Например DOGE"
+                                @keyup.enter="addTicker"
                             />
                         </div>
                         <div
@@ -80,7 +81,7 @@
                         :key="tick.name"
                         class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
                         :class="{ 'border-4': sel === tick }"
-                        @click="sel = tick"
+                        @click="select(tick)"
                     >
                         <div class="px-4 py-5 sm:p-6 text-center">
                             <dt
@@ -124,10 +125,12 @@
                 <div
                     class="flex items-end border-gray-600 border-b border-l h-64"
                 >
-                    <div class="bg-purple-800 border w-10 h-24"></div>
-                    <div class="bg-purple-800 border w-10 h-32"></div>
-                    <div class="bg-purple-800 border w-10 h-48"></div>
-                    <div class="bg-purple-800 border w-10 h-16"></div>
+                    <div
+                        v-for="(bar, index) of normalizeStyleBar()"
+                        :key="index"
+                        class="bg-purple-800 border w-10"
+                        :style="{ height: `${bar}%` }"
+                    ></div>
                 </div>
                 <button
                     type="button"
@@ -175,23 +178,25 @@ export default {
     methods: {
         addTicker() {
             if (this.ticker.trim()) {
-                const newTicker = { name: this.ticker, price: '?' }
+                const currentTicker = { name: this.ticker, price: '?' }
 
-                this.tickers.push(newTicker)
+                this.tickers.push(currentTicker)
                 this.ticker = ''
                 //Задаём интервал, получаем данные сервера.
                 setInterval(async () => {
                     const f = await fetch(
-                        `https://min-api.cryptocompare.com/data/price?fsym=${newTicker.name}&tsyms=USD&api_key=f42f70491d367d88ea7e00ce9b56f44145b8f1cccc603476eed2c9edd3c3acfc`,
+                        `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=f42f70491d367d88ea7e00ce9b56f44145b8f1cccc603476eed2c9edd3c3acfc`,
                     )
                     const data = await f.json()
 
-                    this.tickers.find((t) => t.name === newTicker.name).price =
+                    this.tickers.find(
+                        (t) => t.name === currentTicker.name,
+                    ).price =
                         data.USD > 1
                             ? data.USD.toFixed(2)
                             : data.USD.toPrecision(2)
 
-                    if (this.sel.name === newTicker.name) {
+                    if (this.sel?.name === currentTicker.name) {
                         this.graph.push(data.USD)
                     }
                 }, 5000)
@@ -200,6 +205,21 @@ export default {
 
         deleteTicker(removeTicker) {
             this.tickers = this.tickers.filter((item) => item !== removeTicker)
+        },
+
+        normalizeStyleBar() {
+            const minValue = Math.min(...this.graph)
+            const maxValue = Math.max(...this.graph)
+
+            return this.graph.map(
+                (price) =>
+                    5 + ((price - minValue) * 95) / (maxValue - minValue),
+            )
+        },
+
+        select(ticker) {
+            this.sel = ticker
+            this.graph = []
         },
     },
 }
