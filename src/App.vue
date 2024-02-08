@@ -18,34 +18,24 @@
                                 name="wallet"
                                 class="block w-full pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
                                 placeholder="Например DOGE"
-                                @keyup.enter="addTicker"
+                                @keyup.enter="ToaddTicker"
+                                @input="showMessage = false"
                             />
                         </div>
                         <div
+                            v-if="filteredTips.length"
                             class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
                         >
                             <span
+                                v-for="tip of filteredTips"
+                                :key="tip.Symbol"
                                 class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
+                                @click="onTipClick(tip.Symbol)"
                             >
-                                BTC
-                            </span>
-                            <span
-                                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
-                            >
-                                DOGE
-                            </span>
-                            <span
-                                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
-                            >
-                                BCH
-                            </span>
-                            <span
-                                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
-                            >
-                                CHD
+                                {{ tip.Symbol }}
                             </span>
                         </div>
-                        <div class="text-sm text-red-600">
+                        <div v-if="showMessage" class="text-sm text-red-600">
                             Такой тикер уже добавлен
                         </div>
                     </div>
@@ -53,7 +43,7 @@
                 <button
                     type="button"
                     class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                    @click="addTicker"
+                    @click="ToaddTicker"
                 >
                     <!-- Heroicon name: solid/mail -->
                     <svg
@@ -172,41 +162,94 @@ export default {
             sel: null,
             tickers: [],
             graph: [],
+            coinList: [],
+            showMessage: false,
+        }
+    },
+
+    computed: {
+        filteredTips() {
+            const filter = this.coinList
+                .filter((coin) =>
+                    coin.Symbol.toLowerCase().includes(
+                        this.ticker.toLowerCase().trim(),
+                    ),
+                )
+                .slice(0, 4)
+
+            return this.ticker.length === 0 ? [] : filter
+        },
+    },
+
+    created: async function () {
+        //маунтим при создании глав. компонента
+        const url =
+            'https://min-api.cryptocompare.com/data/all/coinlist?summary=true'
+        try {
+            const f = await fetch(url)
+            const data = await f.json()
+            this.coinList = await Object.values(data.Data)
+        } catch {
+            this.coinList = []
         }
     },
 
     methods: {
-        addTicker() {
+        //добавляем ticker и получаем его данные
+        ToaddTicker() {
             if (this.ticker.trim()) {
-                const currentTicker = { name: this.ticker, price: '?' }
+                const currentTicker = {
+                    name: this.ticker.toUpperCase(),
+                    price: '?',
+                }
 
-                this.tickers.push(currentTicker)
-                this.ticker = ''
-                //Задаём интервал, получаем данные сервера.
-                setInterval(async () => {
-                    const f = await fetch(
-                        `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=f42f70491d367d88ea7e00ce9b56f44145b8f1cccc603476eed2c9edd3c3acfc`,
-                    )
-                    const data = await f.json()
+                if (!this.checkIsAddedTicker(currentTicker)) {
+                    this.showMessage = false
+                    this.tickers.push(currentTicker)
+                    this.ticker = ''
 
-                    this.tickers.find(
-                        (t) => t.name === currentTicker.name,
-                    ).price =
-                        data.USD > 1
-                            ? data.USD.toFixed(2)
-                            : data.USD.toPrecision(2)
+                    //Задаём интервал, получаем данные сервера.
+                    setInterval(async () => {
+                        const f = await fetch(
+                            `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=f42f70491d367d88ea7e00ce9b56f44145b8f1cccc603476eed2c9edd3c3acfc`,
+                        )
+                        const data = await f.json()
 
-                    if (this.sel?.name === currentTicker.name) {
-                        this.graph.push(data.USD)
-                    }
-                }, 5000)
+                        this.tickers.find(
+                            (t) => t.name === currentTicker.name,
+                        ).price =
+                            data.USD > 1
+                                ? data.USD.toFixed(2)
+                                : data.USD.toPrecision(2)
+
+                        if (this.sel?.name === currentTicker.name) {
+                            this.graph.push(data.USD)
+                        }
+                    }, 5000)
+                } else {
+                    this.showMessage = true
+                    return
+                }
             }
         },
+        //добавляем при нажатии tip (подсказка из фильтра)
+        onTipClick(tip) {
+            this.ticker = tip
+            this.ToaddTicker()
+        },
 
+        //проверка на добавленый ticker (валидация)
+        checkIsAddedTicker(currentTip) {
+            return this.tickers.some(
+                (tip) =>
+                    tip.name.toLowerCase() === currentTip.name.toLowerCase(),
+            )
+        },
+        //удаляем добавленный ticker
         deleteTicker(removeTicker) {
             this.tickers = this.tickers.filter((item) => item !== removeTicker)
         },
-
+        //приводим стили столбцов в % соотношении контейнера
         normalizeStyleBar() {
             const minValue = Math.min(...this.graph)
             const maxValue = Math.max(...this.graph)
@@ -216,7 +259,7 @@ export default {
                     5 + ((price - minValue) * 95) / (maxValue - minValue),
             )
         },
-
+        //выбранный ticker
         select(ticker) {
             this.sel = ticker
             this.graph = []
