@@ -64,10 +64,33 @@
 
             <template v-if="tickers.length">
                 <hr class="w-full border-t border-gray-600 my-4" />
+                <button
+                    v-if="page > 1"
+                    class="my-4 mx-2 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    @click="page = page - 1"
+                >
+                    Назад
+                </button>
+                <button
+                    v-if="hasNextPage"
+                    class="my-4 mx-2 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    @click="page = page + 1"
+                >
+                    Вперёд
+                </button>
+                <div>
+                    Фильтр:
+                    <input
+                        v-model="filter"
+                        type="text"
+                        placeholder="Введите название"
+                    />
+                </div>
+                <hr class="w-full border-t border-gray-600 my-4" />
 
                 <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
                     <div
-                        v-for="tick of tickers"
+                        v-for="tick of filteredTickers()"
                         :key="tick.name"
                         class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
                         :class="{ 'border-4': sel === tick }"
@@ -164,6 +187,9 @@ export default {
             graph: [],
             coinList: [],
             showMessage: false,
+            page: 1,
+            filter: '',
+            hasNextPage: false,
         }
     },
 
@@ -181,7 +207,38 @@ export default {
         },
     },
 
+    watch: {
+        filter() {
+            this.page = 1
+            window.history.pushState(
+                null,
+                document.title,
+                `${window.location.pathname}?filter=${this.filter}&page=${this.page}`,
+            )
+        },
+
+        page() {
+            window.history.pushState(
+                null,
+                document.title,
+                `${window.location.pathname}?filter=${this.filter}&page=${this.page}`,
+            )
+        },
+    },
+
     created: async function () {
+        const windowData = Object.fromEntries(
+            new URL(window.location).searchParams.entries(),
+        )
+
+        if (windowData.filter) {
+            this.filter = windowData.filter
+        }
+
+        if (windowData.page) {
+            this.page = windowData.filter
+        }
+
         //маунтим при создании глав. компонента
         const url =
             'https://min-api.cryptocompare.com/data/all/coinlist?summary=true'
@@ -204,19 +261,39 @@ export default {
     },
 
     methods: {
+        //Фильтрация tickers по названию в поле "Фильтр:"
+        filteredTickers() {
+            const start = (this.page - 1) * 6
+            const end = this.page * 6
+
+            const filteredTickers = this.tickers.filter((ticker) =>
+                ticker.name.toLowerCase().includes(this.filter.toLowerCase()),
+            )
+
+            this.hasNextPage = filteredTickers.length > end
+
+            return filteredTickers.slice(start, end)
+        },
+
         subscribeToUpdates(tickerName) {
             //Задаём интервал, получаем данные сервера.
             setInterval(async () => {
                 const f = await fetch(
                     `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=f42f70491d367d88ea7e00ce9b56f44145b8f1cccc603476eed2c9edd3c3acfc`,
                 )
-                const data = await f.json()
 
-                this.tickers.find((t) => t.name === tickerName).price =
-                    data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
+                try {
+                    const data = await f.json()
+                    this.tickers.find((t) => t.name === tickerName).price =
+                        data.USD > 1
+                            ? data.USD.toFixed(2)
+                            : data.USD.toPrecision(2)
 
-                if (this.sel?.name === tickerName) {
-                    this.graph.push(data.USD)
+                    if (this.sel?.name === tickerName) {
+                        this.graph.push(data.USD)
+                    }
+                } catch {
+                    return
                 }
             }, 5000)
 
@@ -234,6 +311,8 @@ export default {
                 if (!this.checkIsAddedTicker(currentTicker)) {
                     this.showMessage = false
                     this.tickers.push(currentTicker)
+                    this.filter = ''
+
                     localStorage.setItem(
                         'cryptonomicon-list',
                         JSON.stringify(this.tickers),
