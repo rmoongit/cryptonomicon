@@ -100,12 +100,12 @@
                             <dt
                                 class="text-sm font-medium text-gray-500 truncate"
                             >
-                                {{ tick.name }}
+                                {{ tick.name }} - USD
                             </dt>
                             <dd
                                 class="mt-1 text-3xl font-semibold text-gray-900"
                             >
-                                {{ tick.price }}
+                                {{ formattedPrice(tick.price) }}
                             </dd>
                         </div>
                         <div class="w-full border-t border-gray-200"></div>
@@ -178,6 +178,8 @@
 </template>
 
 <script>
+import { loadTicker, loadAllCoins } from './api'
+
 export default {
     data() {
         return {
@@ -301,49 +303,52 @@ export default {
             this.page = windowData.page
         }
 
-        //маунтим при создании глав. компонента
-        const url =
-            'https://min-api.cryptocompare.com/data/all/coinlist?summary=true'
         const tickersData = localStorage.getItem('cryptonomicon-list')
 
         if (tickersData) {
             this.tickers = JSON.parse(tickersData)
-            this.tickers.forEach((ticker) =>
-                this.subscribeToUpdates(ticker.name),
-            )
         }
 
+        setInterval(this.updateTickers, 5000)
+
         try {
-            const f = await fetch(url)
-            const data = await f.json()
-            this.coinList = await Object.values(data.Data)
+            //маунтим при создании глав. компонента
+            this.coinList = await loadAllCoins()
         } catch {
-            this.coinList = []
+            console.log('Монеты не пришли')
         }
     },
 
     methods: {
-        subscribeToUpdates(tickerName) {
-            //Задаём интервал, получаем данные сервера.
-            setInterval(async () => {
-                const f = await fetch(
-                    `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=f42f70491d367d88ea7e00ce9b56f44145b8f1cccc603476eed2c9edd3c3acfc`,
-                )
+        //Форматируем цену в правильный формат
+        formattedPrice(price) {
+            if (price === '-') {
+                return price
+            }
+            return price > 1 ? price.toFixed(2) : price.toPrecision(2)
+        },
 
-                try {
-                    const data = await f.json()
-                    this.tickers.find((t) => t.name === tickerName).price =
-                        data.USD > 1
-                            ? data.USD.toFixed(2)
-                            : data.USD.toPrecision(2)
+        //Обновляем наши тикеры
+        async updateTickers() {
+            if (!this.tickers.length) {
+                return
+            }
 
-                    if (this.selectedTicker?.name === tickerName) {
-                        this.graph.push(data.USD)
-                    }
-                } catch {
+            const exchangeData = await loadTicker(
+                this.tickers.map((ticker) => ticker.name),
+            )
+
+            this.tickers.forEach((ticker) => {
+                const price = exchangeData[ticker.name.toUpperCase()]
+
+                if (!price) {
+                    ticker.price = '-'
                     return
                 }
-            }, 5000)
+
+                const normalizedPrice = 1 / price
+                ticker.price = normalizedPrice
+            })
 
             this.ticker = ''
         },
@@ -353,15 +358,13 @@ export default {
             if (this.ticker.trim()) {
                 const currentTicker = {
                     name: this.ticker.toUpperCase(),
-                    price: '?',
+                    price: '-',
                 }
 
                 if (!this.checkIsAddedTicker(currentTicker)) {
                     this.showMessage = false
                     this.tickers = [...this.tickers, currentTicker]
                     this.filter = ''
-
-                    this.subscribeToUpdates(currentTicker.name)
                 } else {
                     this.showMessage = true
                     return
