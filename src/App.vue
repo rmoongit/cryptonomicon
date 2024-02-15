@@ -178,7 +178,7 @@
 </template>
 
 <script>
-import { loadTicker, loadAllCoins } from './api'
+import { loadAllCoins, subscribeToTicker, unsubscribeFromTicker } from './api'
 
 export default {
     data() {
@@ -295,21 +295,24 @@ export default {
             new URL(window.location).searchParams.entries(),
         )
 
-        if (windowData.filter) {
-            this.filter = windowData.filter
-        }
+        const VALID_KEYS = ['filter', 'page']
 
-        if (windowData.page) {
-            this.page = windowData.page
-        }
+        VALID_KEYS.forEach((key) => {
+            if (windowData[key]) {
+                this[key] = windowData[key]
+            }
+        })
 
         const tickersData = localStorage.getItem('cryptonomicon-list')
 
         if (tickersData) {
             this.tickers = JSON.parse(tickersData)
+            this.tickers.forEach((ticker) => {
+                subscribeToTicker(ticker.name, (newPrice) =>
+                    this.updateTicker(ticker.name, newPrice),
+                )
+            })
         }
-
-        setInterval(this.updateTickers, 5000)
 
         try {
             //маунтим при создании глав. компонента
@@ -328,29 +331,26 @@ export default {
             return price > 1 ? price.toFixed(2) : price.toPrecision(2)
         },
 
+        updateTicker(tickerName, price) {
+            this.tickers
+                .filter((ticker) => ticker.name === tickerName)
+                .forEach((ticker) => {
+                    ticker.price = price
+                })
+        },
+
         //Обновляем наши тикеры
         async updateTickers() {
-            if (!this.tickers.length) {
-                return
-            }
-
-            const exchangeData = await loadTicker(
-                this.tickers.map((ticker) => ticker.name),
-            )
-
-            this.tickers.forEach((ticker) => {
-                const price = exchangeData[ticker.name.toUpperCase()]
-
-                if (!price) {
-                    ticker.price = '-'
-                    return
-                }
-
-                const normalizedPrice = 1 / price
-                ticker.price = normalizedPrice
-            })
-
-            this.ticker = ''
+            // if (!this.tickers.length) {
+            //     return
+            // }
+            // const exchangeData = await loadTickers(
+            //     this.tickers.map((ticker) => ticker.name),
+            // )
+            // this.tickers.forEach((ticker) => {
+            //     const price = exchangeData[ticker.name.toUpperCase()]
+            //     ticker.price = price ?? '-'
+            // })
         },
 
         //добавляем ticker и получаем его данные
@@ -364,6 +364,11 @@ export default {
                 if (!this.checkIsAddedTicker(currentTicker)) {
                     this.showMessage = false
                     this.tickers = [...this.tickers, currentTicker]
+
+                    subscribeToTicker(currentTicker.name, (newPrice) =>
+                        this.updateTicker(currentTicker.name, newPrice),
+                    )
+                    this.ticker = ''
                     this.filter = ''
                 } else {
                     this.showMessage = true
@@ -391,6 +396,8 @@ export default {
             if (this.selectedTicker === removeTicker) {
                 this.selectedTicker = null
             }
+
+            unsubscribeFromTicker(removeTicker)
         },
 
         //выбранный ticker
