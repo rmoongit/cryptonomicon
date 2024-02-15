@@ -1,33 +1,11 @@
 const API_KEY =
-    'f42f70491d367d88ea7e00ce9b56f44145b8f1cccc603476eed2c9edd3c3acfc'
+    'bf17aea97ceea9b0c7b3eb970ed642408bc1685b89f2620347a8ed32b0e33c7e'
 
-const tickersHandlers = new Map()
-
-//Получение конкретного тикера из массива в который добавили
-const loadTickers = () => {
-    if (tickersHandlers.size === 0) {
-        return
-    }
-
-    fetch(
-        `https://min-api.cryptocompare.com/data/pricemulti?fsyms=${[...tickersHandlers.keys()].join(',')}&tsyms=USD&api_key=${API_KEY}`,
-    )
-        .then((response) => response.json())
-        .then((rawData) => {
-            const updatedPrices = Object.fromEntries(
-                Object.entries(rawData).map(([key, value]) => [
-                    key,
-                    1,
-                    value.USD,
-                ]),
-            )
-
-            Object.entries(updatedPrices).forEach(([currency, newPrice]) => {
-                const handlers = tickersHandlers.get(currency) ?? []
-                handlers.forEach((fn) => fn(newPrice))
-            })
-        })
-}
+const socket = new WebSocket(
+    `wss://streamer.cryptocompare.com/v2?api_key=${API_KEY}`,
+)
+const tickersHandlers = new Map() // {}
+const AGGREGATE_INDEX = '5'
 
 //Получение всех монет
 export const loadAllCoins = () =>
@@ -35,15 +13,56 @@ export const loadAllCoins = () =>
         .then((response) => response.json())
         .then((coins) => Object.values(coins.Data))
 
-//Используем ВЕБсокеты
+//Используем Websocket
+socket.addEventListener('message', (event) => {
+    const {
+        TYPE: type,
+        FROMSYMBOL: currency,
+        PRICE: newPrice,
+    } = JSON.parse(event.data)
 
+    if (type !== AGGREGATE_INDEX || newPrice === undefined) {
+        return
+    }
+
+    const handlers = tickersHandlers.get(currency) ?? []
+    handlers.forEach((fn) => fn(newPrice))
+})
+//Отправляет сокет
+function sendToWebSocket(message) {
+    const stringifiedMessage = JSON.stringify(message)
+
+    if (socket.readyState === WebSocket.OPEN) {
+        socket.send(stringifiedMessage)
+        return
+    }
+
+    socket.addEventListener(
+        'open',
+        () => {
+            socket.send(stringifiedMessage)
+        },
+        { once: true },
+    )
+}
+
+//Подписывается на сокете
+function subscribeToTickerOnWs(ticker) {
+    sendToWebSocket({ action: 'SubAdd', subs: [`5~CCCAGG~${ticker}~USD`] })
+}
+
+function unSubscribeFromTickerOnWs(ticker) {
+    sendToWebSocket({ action: 'SubRemove', subs: [`5~CCCAGG~${ticker}~USD`] })
+}
+
+//Подписчики
 export const subscribeToTicker = (ticker, callback) => {
     const subscribers = tickersHandlers.get(ticker) || []
     tickersHandlers.set(ticker, [...subscribers, callback])
+    subscribeToTickerOnWs(ticker)
 }
 
 export const unsubscribeFromTicker = (ticker) => {
     tickersHandlers.delete(ticker)
+    unSubscribeFromTickerOnWs(ticker)
 }
-
-setInterval(loadTickers, 5000)

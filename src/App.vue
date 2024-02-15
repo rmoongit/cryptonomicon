@@ -339,20 +339,6 @@ export default {
                 })
         },
 
-        //Обновляем наши тикеры
-        async updateTickers() {
-            // if (!this.tickers.length) {
-            //     return
-            // }
-            // const exchangeData = await loadTickers(
-            //     this.tickers.map((ticker) => ticker.name),
-            // )
-            // this.tickers.forEach((ticker) => {
-            //     const price = exchangeData[ticker.name.toUpperCase()]
-            //     ticker.price = price ?? '-'
-            // })
-        },
-
         //добавляем ticker и получаем его данные
         ToaddTicker() {
             if (this.ticker.trim()) {
