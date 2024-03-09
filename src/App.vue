@@ -93,7 +93,10 @@
                         v-for="tick of paginatedTickers"
                         :key="tick.name"
                         class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
-                        :class="{ 'border-4': selectedTicker === tick }"
+                        :class="{
+                            'border-4': selectedTicker === tick,
+                            'bg-rose-600': !tick.isAvailable,
+                        }"
                         @click="select(tick)"
                     >
                         <div class="px-4 py-5 sm:p-6 text-center">
@@ -105,7 +108,7 @@
                             <dd
                                 class="mt-1 text-3xl font-semibold text-gray-900"
                             >
-                                {{ formattedPrice(tick.price) }}
+                                {{ formattedPrice(tick, tick.price) }}
                             </dd>
                         </div>
                         <div class="w-full border-t border-gray-200"></div>
@@ -324,10 +327,12 @@ export default {
 
     methods: {
         //Форматируем цену в правильный формат
-        formattedPrice(price) {
+        formattedPrice(ticker, price) {
             if (price === '-') {
+                ticker.isAvailable = false
                 return price
             }
+            ticker.isAvailable = true
             return price > 1 ? price.toFixed(2) : price.toPrecision(2)
         },
 
@@ -348,6 +353,7 @@ export default {
                 const currentTicker = {
                     name: this.ticker.toUpperCase(),
                     price: '-',
+                    isAvailable: false,
                 }
 
                 if (!this.checkIsAddedTicker(currentTicker)) {

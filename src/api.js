@@ -13,7 +13,10 @@ export const loadAllCoins = () =>
         .then((response) => response.json())
         .then((coins) => Object.values(coins.Data))
 
-//Используем Websocket
+/*
+Websockets
+Используем, слушаем сокет.
+*/
 socket.addEventListener('message', (event) => {
     const {
         TYPE: type,
