@@ -92,10 +92,11 @@
                     <div
                         v-for="tick of paginatedTickers"
                         :key="tick.name"
-                        class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
+                        class="overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
                         :class="{
                             'border-4': selectedTicker === tick,
                             'bg-rose-600': !tick.isAvailable,
+                            'bg-white': tick.isAvailable,
                         }"
                         @click="select(tick)"
                     >
