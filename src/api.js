@@ -5,7 +5,12 @@ const socket = new WebSocket(
     `wss://streamer.cryptocompare.com/v2?api_key=${API_KEY}`,
 )
 const tickersHandlers = new Map() // {}
+const tradedTickerPrices = new Map() // new {}
+
 const AGGREGATE_INDEX = '5'
+const invalidMessage = 'INVALID_SUB'
+const BTC = 'BTC'
+const USD = 'USD'
 
 //Получение всех монет
 export const loadAllCoins = () =>
@@ -21,16 +26,52 @@ socket.addEventListener('message', (event) => {
     const {
         TYPE: type,
         FROMSYMBOL: currency,
+        TOSYMBOL: toSymbol,
+        MESSAGE: message,
+        PARAMETER: parameter,
         PRICE: newPrice,
     } = JSON.parse(event.data)
+
+    if (message === invalidMessage) {
+        const [, , ticker, newCurrency] = parameter.split('~')
+
+        if (newCurrency === USD) {
+            subscribeToTickerOnWs(ticker, BTC)
+        }
+
+        if (toSymbol !== BTC || toSymbol !== USD) {
+            return
+        }
+
+        runHandlers(ticker, null)
+    }
 
     if (type !== AGGREGATE_INDEX || newPrice === undefined) {
         return
     }
 
-    const handlers = tickersHandlers.get(currency) ?? []
-    handlers.forEach((fn) => fn(newPrice))
+    if (newPrice) {
+        if (toSymbol === BTC) {
+            tradedTickerPrices.set(currency, newPrice)
+        }
+
+        if (currency === BTC) {
+            Array.from(tradedTickerPrices.keys()).forEach((ticker) => {
+                const price = tradedTickerPrices.get(ticker)
+                runHandlers(ticker, price * newPrice)
+                console.log('цена из traded ' + price, 'цена BTC ' + newPrice)
+            })
+        }
+    }
+
+    runHandlers(currency, newPrice)
 })
+
+function runHandlers(currency, price) {
+    const handlers = tickersHandlers.get(currency) ?? []
+    handlers.forEach((fn) => fn(price))
+}
+
 //Отправляет сокет
 function sendToWebSocket(message) {
     const stringifiedMessage = JSON.stringify(message)
@@ -50,12 +91,18 @@ function sendToWebSocket(message) {
 }
 
 //Подписывается на сокете
-function subscribeToTickerOnWs(ticker) {
-    sendToWebSocket({ action: 'SubAdd', subs: [`5~CCCAGG~${ticker}~USD`] })
+function subscribeToTickerOnWs(ticker, toSymbol = USD) {
+    sendToWebSocket({
+        action: 'SubAdd',
+        subs: [`5~CCCAGG~${ticker}~${toSymbol}`],
+    })
 }
 
-function unSubscribeFromTickerOnWs(ticker) {
-    sendToWebSocket({ action: 'SubRemove', subs: [`5~CCCAGG~${ticker}~USD`] })
+function unSubscribeFromTickerOnWs(ticker, toSymbol = USD) {
+    sendToWebSocket({
+        action: 'SubRemove',
+        subs: [`5~CCCAGG~${ticker}~${toSymbol}`],
+    })
 }
 
 //Подписчики
@@ -66,6 +113,6 @@ export const subscribeToTicker = (ticker, callback) => {
 }
 
 export const unsubscribeFromTicker = (ticker) => {
-    tickersHandlers.delete(ticker)
     unSubscribeFromTickerOnWs(ticker)
+    tickersHandlers.delete(ticker)
 }
