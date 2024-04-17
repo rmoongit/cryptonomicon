@@ -100,9 +100,11 @@ function subscribeToTickerOnWs(ticker, toSymbol = USD) {
 }
 
 function unSubscribeFromTickerOnWs(ticker, toSymbol = USD) {
+  const tickerName = ticker.name
+
   sendToWebSocket({
     action: 'SubRemove',
-    subs: [`5~CCCAGG~${ticker}~${toSymbol}`],
+    subs: [`5~CCCAGG~${tickerName}~${toSymbol}`],
   })
 }
 
