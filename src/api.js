@@ -112,13 +112,14 @@ function unSubscribeFromTickerOnWs(ticker, toSymbol = USD) {
 export const subscribeToTicker = (ticker, callback) => {
   const subscribers = tickersHandlers.get(ticker) || []
   tickersHandlers.set(ticker, [...subscribers, callback])
+
   subscribeToTickerOnWs(ticker)
 }
 
 export const unsubscribeFromTicker = (ticker) => {
   unSubscribeFromTickerOnWs(ticker)
 
-  tickersHandlers.delete(ticker)
+  tickersHandlers.delete(ticker.name)
 }
 
 window.tickersHandlers = tickersHandlers // смотрим в консоле браузера выполнение этой функции
