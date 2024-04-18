@@ -17,7 +17,7 @@
     <button
       type="button"
       class="absolute top-0 right-0"
-      @click="selectedTicker = null"
+      @click="$emit('selectedTicker')"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -58,7 +58,7 @@ export default {
     },
   },
 
-  emits: ['update-graph'],
+  emits: ['update-graph', 'selectedTicker'],
 
   data() {
     return {

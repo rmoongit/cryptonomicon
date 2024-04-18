@@ -78,6 +78,7 @@
         :ticker-name="selectedTicker.name"
         :graph="graph"
         @update-graph="updateGraph"
+        @selected-ticker="selectedTicker = null"
       />
     </div>
   </div>
